@@ -23,7 +23,7 @@ const Chat = () => {
         if (!user?.id) return;
 
         console.log('🔌 Socket setup...');
-        const newSocket = io(process.env.REACT_APP_API_URL);
+        const newSocket = io("https://chatting-1-iel1.onrender.com");
 
         newSocket.on('connect', () => {
             console.log('✅ Connected');
