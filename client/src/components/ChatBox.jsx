@@ -37,7 +37,7 @@ const ChatBox = ({
                         const isSent = msg.sender === currentUser?.id;
 
                         return (
-                            <div key={msg._id || idx} className={`message ${isSent ? 'sent' : 'received'}`}>
+                            <div key={msg._id || `${msg.sender}-${msg.timestamp}`} className={`message ${isSent ? 'sent' : 'received'}`}>
                                 <p>{msg.text}</p>
                                 <span className="timestamp">
                                     {new Date(msg.timestamp).toLocaleTimeString([], {
