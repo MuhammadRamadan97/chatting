@@ -54,12 +54,19 @@ const setupSocket = (io) => {
                 console.log('   Sender socket:', senderSocketId);
 
                 if (senderSocketId) {
-                    console.log('   📤 Emitting messages_seen to sender');
                     io.to(senderSocketId).emit('messages_seen', {
                         by: receiverId,
                         count: result.modifiedCount
                     });
-                    console.log('   ✅ Event sent\n');
+                }
+
+                // Also notify the receiver so their local state matches DB immediately
+                const receiverSocketId = onlineUsers.get(receiverId);
+                if (receiverSocketId) {
+                    io.to(receiverSocketId).emit('messages_seen', {
+                        by: receiverId,
+                        count: result.modifiedCount
+                    });
                 } else {
                     console.log('   ⚠️  Sender not online\n');
                 }

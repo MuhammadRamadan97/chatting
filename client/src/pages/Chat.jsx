@@ -93,6 +93,13 @@ const Chat = () => {
                     senderId: selectedUser._id,
                     receiverId: user.id
                 });
+                setMessages(prev =>
+                    prev.map(msg =>
+                        msg.receiver === user.id && msg.sender === selectedUser._id
+                            ? { ...msg, seen: true }
+                            : msg
+                    )
+                );
             } catch (error) {
                 console.error('Failed to load messages');
             }
