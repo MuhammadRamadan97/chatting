@@ -47,12 +47,22 @@ const Chat = () => {
 
         // Listen for messages_seen
         newSocket.on('messages_seen', (data) => {
-            console.log('👀 MESSAGES_SEEN received:', data);
+            console.log('👀 messages_seen event:', data);
 
             setMessages(prev =>
-                prev.map(msg =>
-                    msg.sender === user.id ? { ...msg, seen: true } : msg
-                )
+                prev.map(msg => {
+                    // If this user is the sender, mark as seen (seen by other person)
+                    if (msg.sender === user.id && msg.receiver === data.by) {
+                        return { ...msg, seen: true };
+                    }
+
+                    // If this user is the receiver, update local mirror immediately
+                    if (msg.receiver === user.id && msg.sender === data.by) {
+                        return { ...msg, seen: true };
+                    }
+
+                    return msg;
+                })
             );
         });
 

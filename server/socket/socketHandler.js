@@ -42,34 +42,38 @@ const setupSocket = (io) => {
             console.log('   Receiver:', receiverId);
 
             try {
-                // Update in DB
                 const result = await Message.updateMany(
                     { sender: senderId, receiver: receiverId, seen: false },
                     { $set: { seen: true } }
                 );
                 console.log(`   ✅ Marked ${result.modifiedCount} as seen`);
 
-                // Get sender's socket
                 const senderSocketId = onlineUsers.get(senderId);
-                console.log('   Sender socket:', senderSocketId);
+                const receiverSocketId = onlineUsers.get(receiverId);
 
+                // Emit to sender (original sender sees ✓✓)
                 if (senderSocketId) {
                     io.to(senderSocketId).emit('messages_seen', {
                         by: receiverId,
-                        count: result.modifiedCount
+                        senderId,
+                        receiverId,
+                        count: result.modifiedCount,
                     });
+                    console.log('   📤 emitted messages_seen to SENDER');
                 }
 
-                // Also notify the receiver so their local state matches DB immediately
-                const receiverSocketId = onlineUsers.get(receiverId);
+                // Emit to receiver (so they instantly reflect seen state)
                 if (receiverSocketId) {
                     io.to(receiverSocketId).emit('messages_seen', {
                         by: receiverId,
-                        count: result.modifiedCount
+                        senderId,
+                        receiverId,
+                        count: result.modifiedCount,
                     });
-                } else {
-                    console.log('   ⚠️  Sender not online\n');
+                    console.log('   📤 emitted messages_seen to RECEIVER');
                 }
+
+                console.log('   ✅ Event sent\n');
             } catch (error) {
                 console.error('Error:', error);
             }
