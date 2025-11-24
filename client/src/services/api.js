@@ -33,7 +33,7 @@ export const authAPI = {
 };
 
 export const messageAPI = {
-    getMessages: (userId) => api.get(`/api/messages/${userId}`),  // ✅ Fixed: plural
+    getMessages: (userId) => api.get(`/api/messages/${userId}`),
     sendMessage: (receiver, text) =>
         api.post('/api/messages', { receiver, text })
 };

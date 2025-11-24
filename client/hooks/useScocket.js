@@ -9,7 +9,7 @@ export const useSocket = (user) => {
 
         console.log('🔌 Initializing Socket.io...');
 
-        const socket = io(process.env.REACT_APP_URL, {
+        const socket = io("https://chatting-1-iel1.onrender.com", {
             reconnection: true,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
