@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
@@ -18,46 +17,57 @@ const Chat = () => {
     const [isTyping, setIsTyping] = useState(false);
     const navigate = useNavigate();
 
-    // Socket Setup
+    // █████ SOCKET SETUP █████
     useEffect(() => {
         if (!user?.id) return;
 
-        console.log('🔌 Socket setup...');
+        console.log('🔌 Connecting socket...');
         const newSocket = io("https://chatting-1-iel1.onrender.com");
 
         newSocket.on('connect', () => {
-            console.log('✅ Connected');
+            console.log('✅ Socket connected');
             newSocket.emit('user_online', user.id);
         });
 
-        newSocket.on('users_online', (userIds) => {
+        setSocket(newSocket);
+        return () => newSocket.disconnect();
+    }, [user?.id]);
+
+    // █████ SOCKET EVENT LISTENERS █████
+    useEffect(() => {
+        if (!socket) return;
+
+        // Online users update
+        socket.on('users_online', (userIds) => {
             setOnlineUsers(Array.isArray(userIds) ? userIds : []);
         });
 
-        newSocket.on('receive_message', (data) => {
-            console.log('💬 Message received');
-            setMessages(prev => [...prev, {
-                _id: data._id,
-                sender: data.sender,
-                text: data.text,
-                seen: false,
-                timestamp: data.timestamp
-            }]);
+        // Receive message
+        socket.on('receive_message', (data) => {
+            console.log('💬 Message received:', data);
+            setMessages(prev => [
+                ...prev,
+                {
+                    _id: data._id,
+                    sender: data.sender,
+                    text: data.text,
+                    seen: false,
+                    timestamp: data.timestamp,
+                    receiver: data.receiver,
+                },
+            ]);
         });
 
-        // Listen for messages_seen
-        newSocket.on('messages_seen', (data) => {
-            console.log('👀 messages_seen event:', data);
+        // Seen event
+        socket.on('messages_seen', (data) => {
+            console.log('👀 messages_seen event received:', data);
 
             setMessages(prev =>
                 prev.map(msg => {
-                    // If this user is the sender, mark as seen (seen by other person)
-                    if (msg.sender === user.id && msg.receiver === data.by) {
-                        return { ...msg, seen: true };
-                    }
+                    const seenByReceiver = msg.sender === user?.id && msg.receiver === data.by;
+                    const seenBySender = msg.receiver === user?.id && msg.sender === data.by;
 
-                    // If this user is the receiver, update local mirror immediately
-                    if (msg.receiver === user.id && msg.sender === data.by) {
+                    if (seenByReceiver || seenBySender) {
                         return { ...msg, seen: true };
                     }
 
@@ -66,28 +76,34 @@ const Chat = () => {
             );
         });
 
-        newSocket.on('user_typing', () => setIsTyping(true));
-        newSocket.on('user_stopped_typing', () => setIsTyping(false));
+        // Typing indicators
+        socket.on('user_typing', () => setIsTyping(true));
+        socket.on('user_stopped_typing', () => setIsTyping(false));
 
-        setSocket(newSocket);
+        // Cleanup listeners
+        return () => {
+            socket.off('users_online');
+            socket.off('receive_message');
+            socket.off('messages_seen');
+            socket.off('user_typing');
+            socket.off('user_stopped_typing');
+        };
+    }, [socket, user?.id]);
 
-        return () => newSocket.disconnect();
-    }, [user?.id]);
-
-    // Fetch users
+    // █████ FETCH USERS █████
     useEffect(() => {
         const fetchUsers = async () => {
             try {
                 const { data } = await authAPI.getUsers();
                 setUsers(data || []);
             } catch (error) {
-                console.error('Failed to fetch users');
+                console.error('⚠️ Failed to fetch users:', error);
             }
         };
         fetchUsers();
     }, []);
 
-    // Fetch messages and emit mark_seen
+    // █████ FETCH MESSAGES & EMIT MARK_SEEN █████
     useEffect(() => {
         if (!selectedUser || !user?.id || !socket) return;
 
@@ -97,46 +113,53 @@ const Chat = () => {
                 const { data } = await messageAPI.getMessages(selectedUser._id);
                 setMessages(data || []);
 
-                // ✅ Emit mark_seen AFTER loading
+                // Emit mark_seen immediately
                 console.log('👀 Emitting mark_seen');
                 socket.emit('mark_seen', {
                     senderId: selectedUser._id,
-                    receiverId: user.id
+                    receiverId: user.id,
                 });
+
+                // Optimistic UI update
                 setMessages(prev =>
                     prev.map(msg =>
-                        msg.receiver === user.id && msg.sender === selectedUser._id
+                        msg.sender === selectedUser._id && msg.receiver === user.id
                             ? { ...msg, seen: true }
                             : msg
                     )
                 );
             } catch (error) {
-                console.error('Failed to load messages');
+                console.error('⚠️ Failed to load messages:', error);
             }
         };
 
         loadMessages();
     }, [selectedUser, user?.id, socket]);
 
-    // Send message
+    // █████ SEND MESSAGE █████
     const handleSendMessage = useCallback((text) => {
         if (!socket || !selectedUser || !user?.id) return;
 
         socket.emit('send_message', {
             sender: user.id,
             receiver: selectedUser._id,
-            text
+            text,
         });
 
-        setMessages(prev => [...prev, {
-            _id: Date.now(),
-            sender: user.id,
-            text,
-            seen: false,
-            timestamp: new Date()
-        }]);
+        setMessages(prev => [
+            ...prev,
+            {
+                _id: Date.now(),
+                sender: user.id,
+                receiver: selectedUser._id,
+                text,
+                seen: false,
+                timestamp: new Date(),
+            },
+        ]);
     }, [socket, selectedUser, user?.id]);
 
+    // █████ TYPING EVENTS █████
     const handleTyping = useCallback(() => {
         if (socket && selectedUser) {
             socket.emit('typing', { receiver: selectedUser._id });
@@ -149,6 +172,7 @@ const Chat = () => {
         }
     }, [socket, selectedUser]);
 
+    // █████ LOGOUT █████
     const handleLogout = () => {
         if (socket) socket.disconnect();
         logout();
